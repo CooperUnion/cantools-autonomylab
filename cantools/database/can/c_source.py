@@ -760,10 +760,10 @@ def _canonical(value):
 
 
 def camel_to_snake_case(value):
-    value = re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', value)
-    value = re.sub(r'(_+)', '_', value)
-    value = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', value).lower()
-    value = _canonical(value)
+    # value = re.sub(r'(.)([A-Z][a-z]+)', r'\1_\2', value)
+    # value = re.sub(r'(_+)', '_', value)
+    # value = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', value).lower()
+    # value = _canonical(value)
 
     return value
 
@@ -1158,11 +1158,11 @@ def _format_choices(signal, signal_name):
 
     for value, name in sorted(signal.unique_choices.items()):
         if signal.is_signed:
-            fmt = '{signal_name}_{name}_CHOICE ({value})'
+            fmt = '{signal_name}_{name}_CHOICE = {value},'
         else:
-            fmt = '{signal_name}_{name}_CHOICE ({value}u)'
+            fmt = '{signal_name}_{name}_CHOICE = {value}u,'
 
-        choices.append(fmt.format(signal_name=signal_name.upper(),
+        choices.append(fmt.format(signal_name=signal_name,
                                   name=str(name),
                                   value=value))
 
@@ -1306,6 +1306,13 @@ def _generate_is_extended_frame_defines(database_name, messages):
 
     return result
 
+SIGNAL_CHOICES_ENUM_FMT = '''\
+enum {database_name}_{message_name}_{signal_name}_t {{
+{choices}
+}};
+'''
+
+SIGNAL_CHOICE_FMT = '    {database_name}_{message_name}_{choice}'
 
 def _generate_choices_defines(database_name, messages):
     choices_defines = []
@@ -1316,13 +1323,24 @@ def _generate_choices_defines(database_name, messages):
                 continue
 
             choices = _format_choices(signal, signal.snake_name)
-            signal_choices_defines = '\n'.join([
-                '#define {}_{}_{}'.format(database_name.upper(),
-                                          message.snake_name.upper(),
-                                          choice)
-                for choice in choices
-            ])
-            choices_defines.append(signal_choices_defines)
+
+            choices_blk = []
+            for choice in choices:
+                choices_blk.append(SIGNAL_CHOICE_FMT.format(
+                    database_name=database_name,
+                    message_name=message.snake_name,
+                    choice=choice))
+
+            choices_blk = '\n'.join(choices_blk)
+
+            signal_choices_enum = SIGNAL_CHOICES_ENUM_FMT.format(
+                database_name=database_name,
+                message_name=message.snake_name,
+                signal_name=signal.snake_name,
+                choices=choices_blk
+            )
+
+            choices_defines.append(signal_choices_enum)
 
     return '\n\n'.join(choices_defines)
 
@@ -1354,7 +1372,9 @@ def _generate_declarations(database_name, messages, floating_point_numbers, use_
         for signal in message.signals:
             signal_declaration = ''
 
-            if floating_point_numbers:
+            do_gen = signal.offset != 0 or signal.scale != 1
+
+            if floating_point_numbers and do_gen:
                 signal_declaration = SIGNAL_DECLARATION_ENCODE_DECODE_FMT.format(
                     database_name=database_name,
                     message_name=message.snake_name,
@@ -1400,7 +1420,9 @@ def _generate_definitions(database_name, messages, floating_point_numbers, use_f
 
             signal_definition = ''
 
-            if floating_point_numbers:
+            do_gen = signal.offset != 0 or signal.scale != 1
+
+            if floating_point_numbers and do_gen:
                 signal_definition = SIGNAL_DEFINITION_ENCODE_DECODE_FMT.format(
                     database_name=database_name,
                     message_name=message.snake_name,
