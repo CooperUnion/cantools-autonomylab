@@ -110,7 +110,7 @@ def decode_data(data: bytes,
     return {
         field.name: _decode_field(field,
                                   unpacked[field.name],
-                                  decode_choices,
+                                  False if field.choices is None else decode_choices,
                                   scaling)
         for field in fields
     }
