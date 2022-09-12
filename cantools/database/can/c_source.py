@@ -66,8 +66,18 @@ extern "C" {{
 /* Signal choices. */
 {choices_defines}
 
+typedef struct {{
+    uint32_t id;
+    uint8_t dlc;
+    bool extd;
+    int (*pack)();
+    int (*unpack)();
+}} can_msg_info_S;
+
 {structs}
 {declarations}
+
+{infostructs}
 
 #ifdef __cplusplus
 }}
@@ -332,6 +342,21 @@ STRUCT_FMT = '''\
  */
 struct {database_name}_{message_name}_t {{
 {members}
+    uint64_t _delta_ms;
+    bool received;
+}};
+'''
+
+STRUCT_MSGDEF_FMT = '''\
+/**
+ * Message information struct.
+ */
+static const can_msg_info_S __attribute__((unused)) {database_name}_{lowername}_info_S = {{
+    .id = {database_name}_{name}_FRAME_ID,
+    .dlc = {database_name}_{name}_LENGTH,
+    .extd = {database_name}_{name}_IS_EXTENDED,
+    .pack = {database_name}_{lowername}_pack,
+    .unpack = {database_name}_{lowername}_unpack,
 }};
 '''
 
@@ -1357,8 +1382,19 @@ def _generate_structs(database_name, messages, bit_fields):
                               database_name=database_name,
                               members='\n\n'.join(members)))
 
+
     return '\n'.join(structs)
 
+def _generate_infostructs(database_name, messages):
+    structs = []
+
+    for message in messages:
+        structs.append(
+            STRUCT_MSGDEF_FMT.format(name=message.name.upper(),
+                                     lowername=message.snake_name,
+                                     database_name=database_name))
+
+    return '\n'.join(structs)
 
 def _get_floating_point_type(use_float):
     return 'float' if use_float else 'double'
@@ -1569,7 +1605,7 @@ def generate(database,
     numbers in the generated code.
 
     Set `bit_fields` to ``True`` to generate bit fields in structs.
-    
+
     Set `use_float` to ``True`` to prefer the `float` type instead
     of the `double` type for floating point numbers.
 
@@ -1596,6 +1632,7 @@ def generate(database,
                                           messages,
                                           floating_point_numbers,
                                           use_float)
+    infostructs = _generate_infostructs(database_name, messages)
     definitions, helper_kinds = _generate_definitions(database_name,
                                                       messages,
                                                       floating_point_numbers,
@@ -1611,7 +1648,8 @@ def generate(database,
                                frame_cycle_time_defines=frame_cycle_time_defines,
                                choices_defines=choices_defines,
                                structs=structs,
-                               declarations=declarations)
+                               declarations=declarations,
+                               infostructs=infostructs)
 
     source = SOURCE_FMT.format(version=__version__,
                                date=date,
